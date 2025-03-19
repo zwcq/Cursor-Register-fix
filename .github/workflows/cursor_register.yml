@@ -60,6 +60,10 @@ jobs:
           import yaml
           import os
           import json
+          import sys
+          
+          # 设置输出编码为utf-8
+          sys.stdout.reconfigure(encoding='utf-8')
           
           # 读取配置文件
           with open('./config/config.yaml', 'r', encoding='utf-8') as f:
@@ -89,9 +93,9 @@ jobs:
           with open('./config/config.yaml', 'w', encoding='utf-8') as f:
               yaml.dump(config, f, default_flow_style=False, allow_unicode=True)
           
-          # 输出邮箱数量
+          # 输出邮箱数量（使用英文）
           email_count = len(config['register']['email_server'].get('custom_email_addresses', []))
-          print(f'已配置 {email_count} 个邮箱地址')
+          print(f'Configured {email_count} email addresses')
           "
       
       - name: "[IMAP] Run script"
