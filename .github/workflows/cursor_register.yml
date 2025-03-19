@@ -56,49 +56,7 @@ jobs:
       - name: "[IMAP] Create config file"
         if: ${{ github.event.inputs.email_server == 'IMAP' }}
         run: |
-          $configLines = @(
-            "register:",
-            "  email_server:",
-            "    name: imap_email_server",
-            "    use_custom_address: true",
-            "    custom_email_addresses:"
-          )
-          
-          $emailConfigs = '${{ secrets.CURSOR_EMAIL_CONFIGS }}' | ConvertFrom-Json
-          foreach ($config in $emailConfigs) {
-            $configLines += @(
-              "    - email: ""$($config.email)""",
-              "      imap_server: ""$($config.imap_server)""",
-              "      imap_port: $($config.imap_port)",
-              "      username: ""$($config.username)""",
-              "      password: ""$($config.password)"""
-            )
-          }
-          
-          $configLines += @(
-            "  max_workers: ${{ github.event.inputs.max_workers }}",
-            "  delete_low_balance_account: true",
-            "  delete_low_balance_account_threshold: 50"
-          )
-          
-          if ('${{ github.event.inputs.ingest_to_oneapi }}' -eq 'true') {
-            $configLines += @(
-              "oneapi:",
-              "  enabled: true",
-              "  url: ""${{ secrets.CURSOR_ONEAPI_URL }}""",
-              "  token: ""${{ secrets.CURSOR_ONEAPI_TOKEN }}""",
-              "  channel_url: ""${{ secrets.CURSOR_CHANNEL_URL }}"""
-            )
-          } else {
-            $configLines += @(
-              "oneapi:",
-              "  enabled: false"
-            )
-          }
-          
-          $configLines | Set-Content -Path ./config/config.yaml -Encoding UTF8
-          $emailCount = ($emailConfigs | Measure-Object).Count
-          Write-Host "已配置 $emailCount 个邮箱地址"
+          $configLines = @("register:", "  email_server:", "    name: imap_email_server", "    use_custom_address: true", "    custom_email_addresses:"); $emailConfigs = '${{ secrets.CURSOR_EMAIL_CONFIGS }}' | ConvertFrom-Json; foreach ($config in $emailConfigs) { $configLines += @("    - email: ""$($config.email)""", "      imap_server: ""$($config.imap_server)""", "      imap_port: $($config.imap_port)", "      username: ""$($config.username)""", "      password: ""$($config.password)""") }; $configLines += @("  max_workers: ${{ github.event.inputs.max_workers }}", "  delete_low_balance_account: true", "  delete_low_balance_account_threshold: 50"); if ('${{ github.event.inputs.ingest_to_oneapi }}' -eq 'true') { $configLines += @("oneapi:", "  enabled: true", "  url: ""${{ secrets.CURSOR_ONEAPI_URL }}""", "  token: ""${{ secrets.CURSOR_ONEAPI_TOKEN }}""", "  channel_url: ""${{ secrets.CURSOR_CHANNEL_URL }}""") } else { $configLines += @("oneapi:", "  enabled: false") }; $configLines | Set-Content -Path ./config/config.yaml -Encoding UTF8; $emailCount = ($emailConfigs | Measure-Object).Count; Write-Host "已配置 $emailCount 个邮箱地址"
       
       - name: "[IMAP] Run script"
         if: ${{ github.event.inputs.email_server == 'IMAP' }}
