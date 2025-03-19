@@ -4,20 +4,31 @@ register:
   delete_low_balance_account: true           # [IMAP only] Re-register account if the balance is not enough
   delete_low_balance_account_threshold: 50   # [IMAP only] Re-register account balance threshold
   email_server: 
-    name: temp_email_server                  # Should be temp_email_server or imap_email_server
-    use_custom_address: false                # [IMAP only] Should be true when use imap_email_server
-    custom_email_address:                    # [IMAP only] email address list
-    - email1@outlook.com
-    - email2@outlook.com
+    name: imap_email_server                  # Should be temp_email_server or imap_email_server
+    use_custom_address: true                # [IMAP only] Should be true when use imap_email_server
+    custom_email_addresses:                  # 定义多个邮箱账号及其IMAP配置
+    - email: liuw48674@gmail.com            # 第一个邮箱地址
+      imap_server: imap.gmail.com
+      imap_port: 993
+      username: liuw48674@gmail.com
+      password: ikgu cpqj bfld kigy
+    # - email: another@example.com          # 可以添加更多邮箱
+    #   imap_server: imap.example.com
+    #   imap_port: 993
+    #   username: another@example.com
+    #   password: your_app_password
+
 
   temp_email_server:                         # Temp email server you use
-    name: Minuteinboxcom
+    name: Gmailpm
 
-  imap_email_server:                         # IMAP setting
-    imap_server: imap.qq.com
+  # 保留默认IMAP设置，但实际将使用custom_email_addresses中的配置
+  imap_email_server:                         # Default IMAP setting (will be overridden by custom_email_addresses)
+    imap_server: imap.gmail.com
     imap_port: 993
-    username: username
-    password: password
+    username: liuw48674@gmail.com
+    password: ikgu cpqj bfld kigy
+
 
 oneapi:
   enabled: false                             # Ingest data into OneAPI server

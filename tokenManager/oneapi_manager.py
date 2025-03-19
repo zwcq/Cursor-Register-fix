@@ -65,6 +65,24 @@ class OneAPIManager:
         response = requests.post(url, json=data, headers=self.headers)
         return response
     
+    # 批量添加Cursor渠道的简便方法
+    def batch_add_channel(self, tokens, channel_url, models=None, tags="Cursor"):
+        from cursor import Cursor
+        if models is None:
+            models = Cursor.models
+            
+        batch_tokens = '\n'.join(tokens)
+        response = self.add_channel(
+            name="Cursor", 
+            base_url=channel_url, 
+            key=batch_tokens, 
+            models=models, 
+            tags=tags
+        )
+        
+        print(f'[OneAPI] Add Channels Batch. Status Code: {response.status_code}, Response: {response.json()}')
+        return response
+    
     def delete_channel(self, id):
         url = urllib.parse.urljoin(self.base_url, f"/api/channel/{id}")
 

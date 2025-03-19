@@ -31,12 +31,16 @@ def register_cursor_core(register_config, options):
         email_server = eval(register_config.temp_email_server.name)(browser)
         email_address = email_server.get_email_address()
     elif register_config.email_server.name == "imap_email_server":
-        imap_server = register_config.imap_email_server.imap_server
-        imap_port = register_config.imap_email_server.imap_port
-        imap_username = register_config.imap_email_server.username
-        imap_password = register_config.imap_email_server.password
+        # 使用每个邮箱各自的IMAP配置
         email_address = register_config.email_server.email_address
-        email_server = Imap(imap_server, imap_port, imap_username, imap_password, email_to = email_address)
+        imap_config = register_config.email_server.imap_config
+        
+        imap_server = imap_config.imap_server
+        imap_port = imap_config.imap_port
+        imap_username = imap_config.username
+        imap_password = imap_config.password
+        
+        email_server = Imap(imap_server, imap_port, imap_username, imap_password, email_to=email_address)
 
     register = CursorRegister(browser, email_server)
     tab_signin, status = register.sign_in(email_address)
@@ -104,8 +108,18 @@ def register_cursor(register_config):
         for idx in range(number):
             register_config_thread = copy.deepcopy(register_config)
             use_custom_address = register_config.email_server.use_custom_address
-            custom_email_address = register_config.email_server.custom_email_address
-            register_config_thread.email_server.email_address = custom_email_address[idx] if use_custom_address else None
+            
+            if use_custom_address and register_config.email_server.name == "imap_email_server":
+                # 获取指定索引的自定义邮箱配置
+                if hasattr(register_config.email_server, 'custom_email_addresses') and idx < len(register_config.email_server.custom_email_addresses):
+                    email_config = register_config.email_server.custom_email_addresses[idx]
+                    # 设置邮箱地址和对应的IMAP配置
+                    register_config_thread.email_server.email_address = email_config.email
+                    register_config_thread.email_server.imap_config = email_config
+                else:
+                    print(f"[Register] Warning: No email configuration found for index {idx}")
+                    continue
+            
             options_thread = copy.deepcopy(options)
             futures.append(executor.submit(register_cursor_core, register_config_thread, options_thread))
         for future in concurrent.futures.as_completed(futures):
@@ -137,14 +151,18 @@ def main(config: DictConfig):
     # Validate the config
     email_server_name = config.register.email_server.name
     use_custom_address = config.register.email_server.use_custom_address
-    custom_email_address = config.register.email_server.custom_email_address
+    
     assert email_server_name in ["temp_email_server", "imap_email_server"], "email_server_name should be either temp_email_server or imap_email_server"
     assert use_custom_address and email_server_name == "imap_email_server" or not use_custom_address, "use_custom_address should be True only when email_server_name is imap_email_server"
-    if use_custom_address and email_server_name == "imap_email_server":
-        config.register.number = len(custom_email_address)
-        print(f"[Register] Parameter regitser.number is overwritten by the length of custom_email_address: {len(custom_email_address)}")
     
-
+    if use_custom_address and email_server_name == "imap_email_server":
+        # 检查和使用自定义邮箱配置
+        if hasattr(config.register.email_server, 'custom_email_addresses'):
+            config.register.number = len(config.register.email_server.custom_email_addresses)
+            print(f"[Register] Parameter register.number is overwritten by the length of custom_email_addresses: {config.register.number}")
+        else:
+            raise ValueError("custom_email_addresses is required when use_custom_address=true with imap_email_server")
+    
     account_infos = register_cursor(config.register)
     tokens = list(set([row['token'] for row in account_infos]))
     print(f"[Register] Register {len(tokens)} accounts successfully")
@@ -160,15 +178,10 @@ def main(config: DictConfig):
         oneapi = OneAPIManager(oneapi_url, oneapi_token)
         # Send request by batch to avoid "Too many SQL variables" error in SQLite.
         # If you use MySQL, better to set the batch_size as len(tokens)
-        batch_size = 10
-        for idx, i in enumerate(range(0, len(tokens), batch_size), start=1):
-            batch = tokens[i:i + batch_size]
-            response = oneapi.add_channel(name = "Cursor",
-                                          base_url = oneapi_channel_url,
-                                          key = '\n'.join(batch),
-                                          models = Cursor.models,
-                                          tags = "Cursor")
-            print(f'[OneAPI] Add Channel Request For Batch {idx}. Status Code: {response.status_code}, Response Body: {response.json()}')
+        batch_size = min(10, len(tokens))
+        for i in range(0, len(tokens), batch_size):
+            batch_tokens = tokens[i:i+batch_size]
+            oneapi.batch_add_channel(batch_tokens, oneapi_channel_url)
 
 if __name__ == "__main__":
     main()
