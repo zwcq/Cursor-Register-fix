@@ -53,10 +53,46 @@ jobs:
           python3 ./cursor_register.py register.number=${{ github.event.inputs.number }} register.max_workers=${{ github.event.inputs.max_workers }} `
           register.email_server.name="temp_email_server"
 
-      - name: "[IMAP] Create config file"
+      - name: "[IMAP] Update email configuration"
         if: ${{ github.event.inputs.email_server == 'IMAP' }}
         run: |
-          $configLines = @("register:", "  email_server:", "    name: imap_email_server", "    use_custom_address: true", "    custom_email_addresses:"); $emailConfigs = '${{ secrets.CURSOR_EMAIL_CONFIGS }}' | ConvertFrom-Json; foreach ($config in $emailConfigs) { $configLines += @("    - email: ""$($config.email)""", "      imap_server: ""$($config.imap_server)""", "      imap_port: $($config.imap_port)", "      username: ""$($config.username)""", "      password: ""$($config.password)""") }; $configLines += @("  max_workers: ${{ github.event.inputs.max_workers }}", "  delete_low_balance_account: true", "  delete_low_balance_account_threshold: 50"); if ('${{ github.event.inputs.ingest_to_oneapi }}' -eq 'true') { $configLines += @("oneapi:", "  enabled: true", "  url: ""${{ secrets.CURSOR_ONEAPI_URL }}""", "  token: ""${{ secrets.CURSOR_ONEAPI_TOKEN }}""", "  channel_url: ""${{ secrets.CURSOR_CHANNEL_URL }}""") } else { $configLines += @("oneapi:", "  enabled: false") }; $configLines | Set-Content -Path ./config/config.yaml -Encoding UTF8; $emailCount = ($emailConfigs | Measure-Object).Count; Write-Host "已配置 $emailCount 个邮箱地址"
+          python3 -c "
+          import yaml
+          import os
+          import json
+          
+          # 读取配置文件
+          with open('./config/config.yaml', 'r', encoding='utf-8') as f:
+              config = yaml.safe_load(f)
+          
+          # 设置邮箱服务器类型
+          config['register']['email_server']['name'] = 'imap_email_server'
+          config['register']['email_server']['use_custom_address'] = True
+          
+          # 设置并发线程数
+          config['register']['max_workers'] = ${{ github.event.inputs.max_workers }}
+          
+          # 设置OneAPI配置
+          if '${{ github.event.inputs.ingest_to_oneapi }}' == 'true':
+              if 'oneapi' not in config:
+                  config['oneapi'] = {}
+              config['oneapi']['enabled'] = True
+              config['oneapi']['url'] = '${{ secrets.CURSOR_ONEAPI_URL }}'
+              config['oneapi']['token'] = '${{ secrets.CURSOR_ONEAPI_TOKEN }}'
+              config['oneapi']['channel_url'] = '${{ secrets.CURSOR_CHANNEL_URL }}'
+          else:
+              if 'oneapi' not in config:
+                  config['oneapi'] = {}
+              config['oneapi']['enabled'] = False
+          
+          # 保存配置文件
+          with open('./config/config.yaml', 'w', encoding='utf-8') as f:
+              yaml.dump(config, f, default_flow_style=False, allow_unicode=True)
+          
+          # 输出邮箱数量
+          email_count = len(config['register']['email_server'].get('custom_email_addresses', []))
+          print(f'已配置 {email_count} 个邮箱地址')
+          "
       
       - name: "[IMAP] Run script"
         if: ${{ github.event.inputs.email_server == 'IMAP' }}
