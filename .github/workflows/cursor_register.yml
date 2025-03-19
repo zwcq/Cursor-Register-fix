@@ -53,50 +53,52 @@ jobs:
           python3 ./cursor_register.py register.number=${{ github.event.inputs.number }} register.max_workers=${{ github.event.inputs.max_workers }} `
           register.email_server.name="temp_email_server"
 
-      # 处理多IMAP邮箱配置 - 使用JSON格式的secrets
-      - name: "Create config file for IMAP mode"
+      - name: "[IMAP] Create config file"
         if: ${{ github.event.inputs.email_server == 'IMAP' }}
         run: |
-          # 创建临时配置文件
-          echo 'register:' > ./temp_config.yaml
-          echo '  email_server:' >> ./temp_config.yaml
-          echo '    name: imap_email_server' >> ./temp_config.yaml
-          echo '    use_custom_address: true' >> ./temp_config.yaml
-          echo '    custom_email_addresses:' >> ./temp_config.yaml
+          $configContent = @"
+register:
+  email_server:
+    name: imap_email_server
+    use_custom_address: true
+    custom_email_addresses:
+"@
           
-          # 解析JSON格式的邮箱配置
           $emailConfigs = '${{ secrets.CURSOR_EMAIL_CONFIGS }}' | ConvertFrom-Json
           foreach ($config in $emailConfigs) {
-            echo "    - email: ""$($config.email)""" >> ./temp_config.yaml
-            echo "      imap_server: ""$($config.imap_server)""" >> ./temp_config.yaml
-            echo "      imap_port: $($config.imap_port)" >> ./temp_config.yaml
-            echo "      username: ""$($config.username)""" >> ./temp_config.yaml
-            echo "      password: ""$($config.password)""" >> ./temp_config.yaml
+            $configContent += @"
+    - email: "$($config.email)"
+      imap_server: "$($config.imap_server)"
+      imap_port: $($config.imap_port)
+      username: "$($config.username)"
+      password: "$($config.password)"
+"@
           }
           
-          # 添加其他配置
-          echo '  max_workers: ${{ github.event.inputs.max_workers }}' >> ./temp_config.yaml
-          echo '  delete_low_balance_account: true' >> ./temp_config.yaml
-          echo '  delete_low_balance_account_threshold: 50' >> ./temp_config.yaml
+          $configContent += @"
+  max_workers: ${{ github.event.inputs.max_workers }}
+  delete_low_balance_account: true
+  delete_low_balance_account_threshold: 50
+"@
           
-          # 添加OneAPI配置
           if ('${{ github.event.inputs.ingest_to_oneapi }}' -eq 'true') {
-            echo 'oneapi:' >> ./temp_config.yaml
-            echo '  enabled: true' >> ./temp_config.yaml
-            echo '  url: "${{ secrets.CURSOR_ONEAPI_URL }}"' >> ./temp_config.yaml
-            echo '  token: "${{ secrets.CURSOR_ONEAPI_TOKEN }}"' >> ./temp_config.yaml
-            echo '  channel_url: "${{ secrets.CURSOR_CHANNEL_URL }}"' >> ./temp_config.yaml
+            $configContent += @"
+oneapi:
+  enabled: true
+  url: "${{ secrets.CURSOR_ONEAPI_URL }}"
+  token: "${{ secrets.CURSOR_ONEAPI_TOKEN }}"
+  channel_url: "${{ secrets.CURSOR_CHANNEL_URL }}"
+"@
           } else {
-            echo 'oneapi:' >> ./temp_config.yaml
-            echo '  enabled: false' >> ./temp_config.yaml
+            $configContent += @"
+oneapi:
+  enabled: false
+"@
           }
           
-          # 复制到配置目录
-          cp ./temp_config.yaml ./config/config.yaml
-          
-          # 显示已配置的邮箱数量
+          $configContent | Out-File -FilePath ./config/config.yaml -Encoding UTF8
           $emailCount = ($emailConfigs | Measure-Object).Count
-          echo "已配置 $emailCount 个邮箱地址"
+          Write-Host "已配置 $emailCount 个邮箱地址"
       
       - name: "[IMAP] Run script"
         if: ${{ github.event.inputs.email_server == 'IMAP' }}
