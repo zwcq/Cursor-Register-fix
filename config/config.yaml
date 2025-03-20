@@ -7,7 +7,7 @@ register:
     name: imap_email_server                  # Should be temp_email_server or imap_email_server
     use_custom_address: true                 # [IMAP only] Should be true when use imap_email_server
     custom_email_addresses:                  # 定义多个邮箱账号及其IMAP配置
-    - email: another@example.com             # 可以添加更多邮箱,但是不建议在云端暴露
+    - email: another@example.com             # 可以邮箱,但是不建议在云端暴露
       imap_server: imap.example.com
       imap_port: 993
       username: another@example.com
