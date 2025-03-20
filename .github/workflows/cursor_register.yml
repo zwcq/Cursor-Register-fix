@@ -105,6 +105,11 @@ jobs:
                   if not isinstance(email_configs, list):
                       raise ValueError('email_configs must be a list')
                   config['register']['email_server']['custom_email_addresses'] = email_configs
+                  # 确保保留原有的delete_low_balance_account相关配置
+                  if 'delete_low_balance_account' not in config['register']:
+                      config['register']['delete_low_balance_account'] = True
+                  if 'delete_low_balance_account_threshold' not in config['register']:
+                      config['register']['delete_low_balance_account_threshold'] = 50
                   print(f'Using {len(email_configs)} email configurations from parameters')
               except json.JSONDecodeError as e:
                   print(f'Error parsing email_configs: {e}')
