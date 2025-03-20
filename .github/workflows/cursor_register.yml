@@ -24,6 +24,14 @@ on:
         description: '将账号信息上传到构件'
         type: boolean
         default: true
+      use_config_file:
+        description: '是否从config.yaml读取邮箱配置'
+        type: boolean
+        default: true
+      email_configs:
+        description: '邮箱配置JSON字符串（仅在use_config_file=false时有效）'
+        type: string
+        default: '[]'
 
 jobs:
   build:
@@ -88,6 +96,20 @@ jobs:
               if 'oneapi' not in config:
                   config['oneapi'] = {}
               config['oneapi']['enabled'] = False
+          
+          # 根据use_config_file参数决定是否使用传入的邮箱配置
+          if '${{ github.event.inputs.use_config_file }}' == 'false':
+              try:
+                  email_configs = json.loads('${{ github.event.inputs.email_configs }}')
+                  if not isinstance(email_configs, list):
+                      raise ValueError('email_configs must be a list')
+                  config['register']['email_server']['custom_email_addresses'] = email_configs
+                  print(f'Using {len(email_configs)} email configurations from parameters')
+              except json.JSONDecodeError as e:
+                  print(f'Error parsing email_configs: {e}')
+                  sys.exit(1)
+          else:
+              print('Using email configurations from config.yaml')
           
           # 保存配置文件
           with open('./config/config.yaml', 'w', encoding='utf-8') as f:

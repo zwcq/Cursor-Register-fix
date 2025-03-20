@@ -148,6 +148,26 @@ def register_cursor(register_config):
 @hydra.main(config_path="config", config_name="config", version_base=None)
 def main(config: DictConfig):
     OmegaConf.set_struct(config, False)
+    
+    # 从环境变量获取是否使用配置文件
+    use_config_file = os.getenv('USE_CONFIG_FILE', 'true').lower() == 'true'
+    email_configs_str = os.getenv('EMAIL_CONFIGS', '[]')
+    
+    if not use_config_file:
+        try:
+            import json
+            email_configs = json.loads(email_configs_str)
+            if not isinstance(email_configs, list):
+                raise ValueError('EMAIL_CONFIGS must be a list')
+            # 使用环境变量中的邮箱配置覆盖配置文件
+            config.register.email_server.custom_email_addresses = email_configs
+            print(f'Using {len(email_configs)} email configurations from environment variables')
+        except json.JSONDecodeError as e:
+            print(f'Error parsing EMAIL_CONFIGS: {e}')
+            return
+    else:
+        print('Using email configurations from config.yaml')
+    
     # Validate the config
     email_server_name = config.register.email_server.name
     use_custom_address = config.register.email_server.use_custom_address
