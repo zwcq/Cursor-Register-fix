@@ -7,11 +7,11 @@ register:
     name: imap_email_server                  # Should be temp_email_server or imap_email_server
     use_custom_address: true                # [IMAP only] Should be true when use imap_email_server
     custom_email_addresses:                  # 定义多个邮箱账号及其IMAP配置
-    - email: liuw48674@gmail.com            # 第一个邮箱地址
-      imap_server: imap.gmail.com
+    - email: another@example.com          # 可以添加更多邮箱
+      imap_server: imap.example.com
       imap_port: 993
-      username: liuw48674@gmail.com
-      password: ikgu cpqj bfld kigy
+      username: another@example.com
+      password: your_app_password
     # - email: another@example.com          # 可以添加更多邮箱
     #   imap_server: imap.example.com
     #   imap_port: 993
