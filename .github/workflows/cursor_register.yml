@@ -17,6 +17,17 @@ on:
         - TempEmail
         - IMAP
         description: '邮箱服务器类型'
+      imap_source:
+        type: choice
+        options:
+        - config_file
+        - parameters
+        default: 'config_file'
+        description: 'IMAP邮箱信息来源（config_file:从配置文件读取，parameters:使用参数传入）'
+      email_data:
+        type: string
+        description: '当选择parameters时，在此传入JSON格式的邮箱配置。格式:[{"email":"user@example.com","imap_server":"imap.example.com","imap_port":993,"username":"user","password":"pass"}]'
+        required: false
       ingest_to_oneapi:
         description: '将账号令牌上传到OneAPI'
         type: boolean
@@ -40,6 +51,15 @@ jobs:
         run: |
           pip3 install -r ./requirements.txt
 
+      # 参数验证：当选择parameters模式但未提供email_data时报错
+      - name: Validate Parameters
+        if: ${{ github.event.inputs.email_server == 'IMAP' && github.event.inputs.imap_source == 'parameters' && github.event.inputs.email_data == '' }}
+        run: |
+          echo "Error: When using 'parameters' as IMAP source, you must provide email_data!"
+          echo "Please provide email configuration in JSON format."
+          echo "Example: [{'email':'user@gmail.com','imap_server':'imap.gmail.com','imap_port':993,'username':'user@gmail.com','password':'app_password'}]"
+          exit 1
+
       - name: "[TempEmail][OneAPI] Run script"
         if: ${{ github.event.inputs.email_server == 'TempEmail' && github.event.inputs.ingest_to_oneapi == 'true' }}
         run: |
@@ -53,8 +73,8 @@ jobs:
           python3 ./cursor_register.py register.number=${{ github.event.inputs.number }} register.max_workers=${{ github.event.inputs.max_workers }} `
           register.email_server.name="temp_email_server"
 
-      - name: "[IMAP] Update email configuration"
-        if: ${{ github.event.inputs.email_server == 'IMAP' }}
+      - name: "[IMAP] Update email configuration from config file"
+        if: ${{ github.event.inputs.email_server == 'IMAP' && github.event.inputs.imap_source == 'config_file' }}
         run: |
           python3 -c "
           import yaml
@@ -68,6 +88,11 @@ jobs:
           # 读取配置文件
           with open('./config/config.yaml', 'r', encoding='utf-8') as f:
               config = yaml.safe_load(f)
+          
+          # 检查是否存在custom_email_addresses配置
+          if 'email_server' not in config['register'] or 'custom_email_addresses' not in config['register']['email_server'] or not config['register']['email_server']['custom_email_addresses']:
+              print('Error: No email addresses found in config file. Please add email configuration to config/config.yaml')
+              sys.exit(1)
           
           # 设置邮箱服务器类型
           config['register']['email_server']['name'] = 'imap_email_server'
@@ -95,7 +120,90 @@ jobs:
           
           # 输出邮箱数量（使用英文）
           email_count = len(config['register']['email_server'].get('custom_email_addresses', []))
-          print(f'Configured {email_count} email addresses')
+          print(f'Configured {email_count} email addresses from config file')
+          
+          # 显示配置的邮箱地址（隐藏密码）
+          print('Email addresses configured:')
+          for i, addr in enumerate(config['register']['email_server']['custom_email_addresses']):
+              print(f'{i+1}. {addr.get('email')} (server: {addr.get('imap_server')})')
+          "
+      
+      - name: "[IMAP] Create email configuration from parameters"
+        if: ${{ github.event.inputs.email_server == 'IMAP' && github.event.inputs.imap_source == 'parameters' && github.event.inputs.email_data != '' }}
+        run: |
+          python3 -c "
+          import yaml
+          import os
+          import json
+          import sys
+          
+          # 设置输出编码为utf-8
+          sys.stdout.reconfigure(encoding='utf-8')
+          
+          try:
+              # 解析输入的邮箱配置
+              email_config_json = '''${{ github.event.inputs.email_data }}'''
+              email_configs = json.loads(email_config_json)
+              
+              # 验证配置格式
+              if not isinstance(email_configs, list) or len(email_configs) == 0:
+                  print('Error: email_data must be a non-empty array')
+                  sys.exit(1)
+                  
+              for config in email_configs:
+                  required_fields = ['email', 'imap_server', 'imap_port', 'username', 'password']
+                  for field in required_fields:
+                      if field not in config:
+                          print(f'Error: Missing required field {field} in email configuration')
+                          sys.exit(1)
+              
+              # 创建配置
+              config = {
+                  'register': {
+                      'number': 1,
+                      'max_workers': ${{ github.event.inputs.max_workers }},
+                      'delete_low_balance_account': True,
+                      'delete_low_balance_account_threshold': 50,
+                      'email_server': {
+                          'name': 'imap_email_server',
+                          'use_custom_address': True,
+                          'custom_email_addresses': email_configs
+                      }
+                  }
+              }
+              
+              # 设置OneAPI配置
+              if '${{ github.event.inputs.ingest_to_oneapi }}' == 'true':
+                  config['oneapi'] = {
+                      'enabled': True,
+                      'url': '${{ secrets.CURSOR_ONEAPI_URL }}',
+                      'token': '${{ secrets.CURSOR_ONEAPI_TOKEN }}',
+                      'channel_url': '${{ secrets.CURSOR_CHANNEL_URL }}'
+                  }
+              else:
+                  config['oneapi'] = {
+                      'enabled': False
+                  }
+              
+              # 保存配置文件
+              with open('./config/config.yaml', 'w', encoding='utf-8') as f:
+                  yaml.dump(config, f, default_flow_style=False, allow_unicode=True)
+              
+              # 输出邮箱数量
+              email_count = len(email_configs)
+              print(f'Configured {email_count} email addresses from parameters')
+              
+              # 显示配置的邮箱地址（隐藏密码）
+              print('Email addresses configured:')
+              for i, addr in enumerate(email_configs):
+                  print(f'{i+1}. {addr.get('email')} (server: {addr.get('imap_server')})')
+              
+          except json.JSONDecodeError:
+              print('Error: Invalid JSON format in email_data')
+              sys.exit(1)
+          except Exception as e:
+              print(f'Error: {str(e)}')
+              sys.exit(1)
           "
       
       - name: "[IMAP] Run script"
